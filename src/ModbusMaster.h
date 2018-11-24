@@ -48,7 +48,22 @@ Set to 1 to enable debugging features within class:
 
 /* _____STANDARD INCLUDES____________________________________________________ */
 // include types & constants of Wiring core API
-#include "Arduino.h"
+//#include "Arduino.h"
+#ifndef Arduino_h
+#include <stdint.h>
+
+#define word(...) makeWord(__VA_ARGS__)
+
+#define lowByte(w) ((uint8_t) ((w) & 0xff))
+#define highByte(w) ((uint8_t) ((w) >> 8))
+
+#define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+#define bitSet(value, bit) ((value) |= (1UL << (bit)))
+#define bitClear(value, bit) ((value) &= ~(1UL << (bit)))
+#define bitWrite(value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
+
+
+#endif
 
 /* _____UTILITY MACROS_______________________________________________________ */
 
@@ -71,10 +86,28 @@ class ModbusMaster
   public:
     ModbusMaster();
    
-    void begin(uint8_t, Stream &serial);
+
+    uint8_t* u8ModbusADUin;
+    uint8_t* u8ModbusADUout;
+
+    uint8_t u8ModbusADUinSize;
+    uint8_t u8ModbusADUoutSize;
+
+    void begin(uint8_t, uint8_t*, uint8_t*);
     void idle(void (*)());
     void preTransmission(void (*)());
     void postTransmission(void (*)());
+
+    void serialWrite(void (*)(uint8_t));
+    void serialRead(uint8_t (*)());
+    void serialFlushRead(void (*)());
+    void serialFlushWrite(void (*)());
+    void serialAvailable(uint8_t (*)());
+
+    void millis(uint32_t (*)());
+
+    void commit();
+    uint8_t handleResponse(uint8_t u8MBFunction);
 
     // Modbus exception codes
     /**
@@ -217,24 +250,7 @@ class ModbusMaster
     uint8_t  readWriteMultipleRegisters(uint16_t, uint16_t, uint16_t, uint16_t);
     uint8_t  readWriteMultipleRegisters(uint16_t, uint16_t);
     
-  private:
-    Stream* _serial;                                             ///< reference to serial port object
-    uint8_t  _u8MBSlave;                                         ///< Modbus slave (1..255) initialized in begin()
-    static const uint8_t ku8MaxBufferSize                = 64;   ///< size of response/transmit buffers    
-    uint16_t _u16ReadAddress;                                    ///< slave register from which to read
-    uint16_t _u16ReadQty;                                        ///< quantity of words to read
-    uint16_t _u16ResponseBuffer[ku8MaxBufferSize];               ///< buffer to store Modbus slave response; read via GetResponseBuffer()
-    uint16_t _u16WriteAddress;                                   ///< slave register to which to write
-    uint16_t _u16WriteQty;                                       ///< quantity of words to write
-    uint16_t _u16TransmitBuffer[ku8MaxBufferSize];               ///< buffer containing data to transmit to Modbus slave; set via SetTransmitBuffer()
-    uint16_t* txBuffer; // from Wire.h -- need to clean this up Rx
-    uint8_t _u8TransmitBufferIndex;
-    uint16_t u16TransmitBufferLength;
-    uint16_t* rxBuffer; // from Wire.h -- need to clean this up Rx
-    uint8_t _u8ResponseBufferIndex;
-    uint8_t _u8ResponseBufferLength;
-    
-    // Modbus function codes for bit access
+      // Modbus function codes for bit access
     static const uint8_t ku8MBReadCoils                  = 0x01; ///< Modbus function 0x01 Read Coils
     static const uint8_t ku8MBReadDiscreteInputs         = 0x02; ///< Modbus function 0x02 Read Discrete Inputs
     static const uint8_t ku8MBWriteSingleCoil            = 0x05; ///< Modbus function 0x05 Write Single Coil
@@ -251,6 +267,25 @@ class ModbusMaster
     // Modbus timeout [milliseconds]
     static const uint16_t ku16MBResponseTimeout          = 2000; ///< Modbus timeout [milliseconds]
     
+
+  private:
+    //Stream* _serial;                                             ///< reference to serial port object
+    uint8_t  _u8MBSlave;                                         ///< Modbus slave (1..255) initialized in begin()
+    static const uint8_t ku8MaxBufferSize                = 64;   ///< size of response/transmit buffers    
+    uint16_t _u16ReadAddress;                                    ///< slave register from which to read
+    uint16_t _u16ReadQty;                                        ///< quantity of words to read
+    uint16_t _u16ResponseBuffer[ku8MaxBufferSize];               ///< buffer to store Modbus slave response; read via GetResponseBuffer()
+    uint16_t _u16WriteAddress;                                   ///< slave register to which to write
+    uint16_t _u16WriteQty;                                       ///< quantity of words to write
+    uint16_t _u16TransmitBuffer[ku8MaxBufferSize];               ///< buffer containing data to transmit to Modbus slave; set via SetTransmitBuffer()
+    uint16_t* txBuffer; // from Wire.h -- need to clean this up Rx
+    uint8_t _u8TransmitBufferIndex;
+    uint16_t u16TransmitBufferLength;
+    uint16_t* rxBuffer; // from Wire.h -- need to clean this up Rx
+    uint8_t _u8ResponseBufferIndex;
+    uint8_t _u8ResponseBufferLength;
+    
+
     // master function that conducts Modbus transactions
     uint8_t ModbusMasterTransaction(uint8_t u8MBFunction);
     
@@ -260,6 +295,19 @@ class ModbusMaster
     void (*_preTransmission)();
     // postTransmission callback function; gets called after a Modbus message has been sent
     void (*_postTransmission)();
+
+    void (*_serialWrite)(uint8_t);
+
+    uint8_t (*_serialRead)();
+
+    void (*_serialFlushWrite)();
+
+    void (*_serialFlushRead)();
+
+    uint8_t (*_serialAvailable)();
+
+    uint32_t (*_millis)();
+
 };
 #endif
 
